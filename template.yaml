@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-cn-spr
+
+  Sample SAM Template for sam-cn-spr
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+
+Parameters:
+
+  VpcIdParameter:
+    Type: "AWS::EC2::VPC::Id"
+    Description: VPC ID in which the VPC Endpoint should be created
+  VpcAllowedSecurityGroupIdParameter:
+    Type: "List<AWS::EC2::SecurityGroup::Id>"
+    Description: Security Group Id that is allowed to communicate to private API gateway
+  VpcEndpointSubnetIdsParameter:
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Description: The ID of one or more subnets in which to create an endpoint network interface
+
+Resources:
+  
+  GetProfileFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: functions/get_profile/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+      - x86_64
+      Environment:
+        Variables:
+          PROFILE_PRE_TABLE: !Ref ProfilePreTable
+          PROFILE_POS_TABLE: !Ref ProfilePosTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilePreTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilePosTable
+      Events:
+        HelloWorld:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /getProfile
+            Method: get
+  
+  
+  FlagsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: "flag_id"
+        AttributeType: "S"
+      KeySchema:
+      - AttributeName: "flag_id"
+        KeyType: "HASH"
+      BillingMode: "PAY_PER_REQUEST"
+      SSESpecification:
+        SSEEnabled: True
+  
+  
+  ProfilePosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: "line"
+        AttributeType: "S"
+      KeySchema:
+      - AttributeName: "line"
+        KeyType: "HASH"
+      BillingMode: "PAY_PER_REQUEST"
+      SSESpecification:
+        SSEEnabled: True
+        
+  ProfilePreTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: "line"
+        AttributeType: "S"
+      KeySchema:
+      - AttributeName: "line"
+        KeyType: "HASH"
+      BillingMode: "PAY_PER_REQUEST"
+      SSESpecification:
+        SSEEnabled: True
+            
+            
+  ScheduleSyncDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/schedule_sync_data/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Tracing: Active
+      VpcConfig:
+        SecurityGroupIds: !Ref VpcAllowedSecurityGroupIdParameter
+        SubnetIds: !Ref VpcEndpointSubnetIdsParameter
+      Environment:
+        Variables:
+          FLAGS_TABLE: !Ref FlagsTable
+          PROFILE_POS_TABLE: !Ref ProfilePosTable
+          PROFILE_Pre_TABLE: !Ref ProfilePreTable
+      Timeout: 300
+      MemorySize: 128
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FlagsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilePosTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProfilePreTable
+        - AWSLambdaExecute
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Name: !Sub '${AWS::StackName}-SCHEDULE-GET-DATA'
+            Schedule: "cron(*/10 * * * ? *)"
+            
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name:
+        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName:
+        Ref: ApplicationResourceGroup
+      AutoConfigurationEnabled: 'true'
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  HelloWorldApi:
+    Description: API Gateway endpoint URL for Prod stage for Hello World function
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/getProfile/"

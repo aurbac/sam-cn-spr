@@ -1,0 +1,36 @@
+# More information about the configuration file can be found here:
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "sam-cn-spr"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+s3_prefix = "sam-cn-spr-new"
+region = "us-east-1"
+parameter_overrides = "VpcIdParameter=\"vpc-080895895fa0e73bd\" VpcAllowedSecurityGroupIdParameter=\"sg-0fb19012a3aa2636a\" VpcEndpointSubnetIdsParameter=\"subnet-0b41026a899e135c5,subnet-0a8a748dd0ca9c9a3\""
+image_repositories = []
+stack_name = "sam-cn-spr-new"
+
+[default.package.parameters]
+resolve_s3 = true
+
+[default.sync.parameters]
+watch = true
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+
+[default.local_start_lambda.parameters]
+warm_containers = "EAGER"
